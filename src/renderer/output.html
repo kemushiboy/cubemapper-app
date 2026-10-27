@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline'">
+	<title>cubemapper 出力</title>
+	<style>
+		html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+		body { display: flex; align-items: center; justify-content: center; }
+		canvas { display: block; }
+	</style>
+</head>
+<body>
+	<canvas id="out"></canvas>
+	<video id="video" preload="auto" playsinline muted hidden></video>
+	<script src="geometry.js"></script>
+	<script src="mapgl.js"></script>
+	<script src="output.js"></script>
+</body>
+</html>

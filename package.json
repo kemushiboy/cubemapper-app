@@ -1,0 +1,82 @@
+{
+  "name": "cubemapper-app",
+  "productName": "cubemapper",
+  "version": "1.0.0",
+  "description": "正六角形に変換したキューブ映像を、実物のキューブへプロジェクションマッピングするアプリ",
+  "main": "src/main.js",
+  "private": true,
+  "author": "kemushiboy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kemushiboy/cubemapper-app.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "release": "electron-builder --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.kemushiboy.cubemapper",
+    "productName": "cubemapper",
+    "copyright": "© kemushiboy",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "identity": null
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "kemushiboy",
+        "repo": "cubemapper-app",
+        "releaseType": "release"
+      }
+    ],
+    "afterPack": "build/afterPack.js"
+  }
+}

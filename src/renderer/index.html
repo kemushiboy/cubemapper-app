@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self' file:; img-src 'self' data: file:; style-src 'self' 'unsafe-inline'">
+	<title>cubemapper</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header class="toolbar">
+		<div class="brand">cubemapper</div>
+		<button id="btnOpen" class="primary">映像を開く</button>
+		<button id="btnLoad">マッピングを読み込む</button>
+		<button id="btnSave">マッピングを保存</button>
+		<div id="fileInfo" class="file-info">正六角形に変換した映像を開いてください（ドラッグ＆ドロップでも開けます）</div>
+		<div class="spacer"></div>
+		<button id="btnOutput" class="output-btn">出力ウィンドウを開く</button>
+	</header>
+
+	<main class="layout">
+		<section class="views">
+			<div class="view">
+				<div class="view-head">
+					<h2>入力（映像のどこを貼るか）</h2>
+					<span class="hint">選んだシェイプの入力範囲の角をドラッグできます</span>
+				</div>
+				<div class="stage" id="srcStage">
+					<div class="canvas-wrap" id="srcWrap"><canvas id="srcCanvas"></canvas></div>
+				</div>
+			</div>
+			<div class="view">
+				<div class="view-head">
+					<h2>出力（プロジェクター）</h2>
+					<span class="hint">角をドラッグして実物のキューブの角に合わせます。シェイプの内側をドラッグすると全体が動きます</span>
+				</div>
+				<div class="stage" id="outStage">
+					<div class="canvas-wrap" id="outWrap">
+						<canvas id="outCanvas"></canvas>
+						<canvas id="outOverlay"></canvas>
+					</div>
+				</div>
+			</div>
+
+			<div class="transport">
+				<button id="btnPrev" title="1フレーム戻る">◀︎</button>
+				<button id="btnPlay" class="play" title="再生 / 一時停止 (Space)">▶︎</button>
+				<button id="btnNext" title="1フレーム進む">▶︎▏</button>
+				<input type="range" id="seek" min="0" max="1000" value="0" step="1">
+				<div id="timecode" class="timecode">0:00.00 / 0:00.00</div>
+				<label class="check"><input type="checkbox" id="loop" checked> ループ</label>
+				<label class="check"><input type="checkbox" id="mute"> 消音</label>
+			</div>
+		</section>
+
+		<aside class="panel">
+			<details open>
+				<summary>出力</summary>
+				<div class="field two"><label>幅</label><input type="number" id="outW" step="1" min="64"><label>高さ</label><input type="number" id="outH" step="1" min="64"></div>
+				<p class="note">プロジェクターの解像度に合わせてください。</p>
+				<div class="field wide"><label>表示先</label><select id="display"></select></div>
+				<label class="check-row"><input type="checkbox" id="fullscreen" checked> フルスクリーンで開く</label>
+				<div class="toggles">
+					<label class="toggle"><input type="checkbox" id="testPattern"><span>テストパターン (T)</span></label>
+					<label class="toggle"><input type="checkbox" id="blackout"><span>ブラックアウト (B)</span></label>
+				</div>
+			</details>
+
+			<details open>
+				<summary>シェイプ</summary>
+				<div class="btn-row">
+					<button id="btnCube" class="primary">キューブ3面を作成</button>
+					<button id="btnAdd">Quad を追加</button>
+				</div>
+				<div id="shapeList" class="shape-list"></div>
+				<div class="btn-row">
+					<button id="btnDup" class="small">複製 (Ctrl+D)</button>
+					<button id="btnDel" class="small">削除 (Del)</button>
+					<button id="btnUp" class="small" title="手前へ">▲</button>
+					<button id="btnDown" class="small" title="奥へ">▼</button>
+				</div>
+				<label class="check-row"><input type="checkbox" id="linkCorners" checked> 重なっている角を一緒に動かす（Alt で一時解除）</label>
+			</details>
+
+			<details open id="propsBox">
+				<summary>選択中のシェイプ</summary>
+				<div id="noSel" class="note">シェイプを選んでください。</div>
+				<div id="props">
+					<div class="field wide"><label>名前</label><input type="text" id="shName" spellcheck="false"></div>
+					<div class="field"><label>不透明度</label><input type="range" id="shOpacity" min="0" max="1" step="0.01"><input type="number" id="shOpacityN" step="0.01"></div>
+					<div class="field"><label>ソフトエッジ</label><input type="range" id="shSoft" min="0" max="0.3" step="0.005"><input type="number" id="shSoftN" step="0.005"></div>
+					<div class="field wide"><label>入力範囲</label>
+						<select id="shSrcPreset">
+							<option value="">（そのまま）</option>
+							<option value="top">六角形の上面</option>
+							<option value="left">六角形の左面</option>
+							<option value="right">六角形の右面</option>
+							<option value="full">映像全体</option>
+						</select>
+					</div>
+					<div class="corner-head"><span>出力の角</span><span>x</span><span>y</span></div>
+					<div id="dstRows" class="corner-rows"></div>
+					<div class="btn-row">
+						<button id="btnResetDst" class="small">出力を入力と同じ形に戻す</button>
+					</div>
+				</div>
+			</details>
+
+			<details>
+				<summary>六角形の位置 <small>（キューブ3面の入力範囲）</small></summary>
+				<div class="field"><label>中心 X</label><input type="range" id="hexCx" min="0" max="3840" step="1"><input type="number" id="hexCxN" step="1"></div>
+				<div class="field"><label>中心 Y</label><input type="range" id="hexCy" min="0" max="2160" step="1"><input type="number" id="hexCyN" step="1"></div>
+				<div class="field"><label>半径</label><input type="range" id="hexR" min="50" max="1500" step="1"><input type="number" id="hexRN" step="1"></div>
+				<p class="note">hexcube（1920×1080・半径486）で書き出した映像ならこのままで合います。変えたら「キューブ3面を作成」か入力範囲の選び直しで反映されます。</p>
+				<button id="btnHexReset" class="small">映像サイズから自動で決める</button>
+			</details>
+
+			<details>
+				<summary>操作のヒント</summary>
+				<ul class="tips">
+					<li>角を選ぶ → 矢印キーで 1px、Shift+矢印で 10px</li>
+					<li>角を選ばずシェイプだけ選ぶ → 矢印キーで全体を移動</li>
+					<li>ドラッグ中に Shift で動きを 1/4 に</li>
+					<li>Tab で角を順に選ぶ / Esc で選択解除</li>
+					<li>Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し</li>
+					<li>出力ウィンドウは Esc で閉じます</li>
+				</ul>
+			</details>
+		</aside>
+	</main>
+
+	<video id="video" preload="auto" playsinline hidden></video>
+
+	<script src="geometry.js"></script>
+	<script src="mapgl.js"></script>
+	<script src="mapper.js"></script>
+</body>
+</html>
