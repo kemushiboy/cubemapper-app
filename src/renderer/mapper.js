@@ -70,13 +70,15 @@
 		};
 	}
 
-	function sendTransport() {
+	// seek=true のときだけ出力ウィンドウは即座にシークする。それ以外は再生速度の微調整で追従させる
+	function sendTransport(seek = false) {
 		if (!outputOpen) return;
 		api.sendTransport({
 			path: st.videoPath,
 			playing: !video.paused,
 			time: video.currentTime,
 			loop: st.loop,
+			seek,
 			sentAt: Date.now(),
 		});
 	}
@@ -383,7 +385,8 @@
 	let lastTransport = 0;
 	function loop() {
 		const playing = videoW > 0 && !video.paused;
-		if (needsDraw || playing) {
+		// 再生中は新しいコマが来たときだけ描く（requestVideoFrameCallback が needsDraw を立てる）
+		if (needsDraw) {
 			drawSrc();
 			drawOut();
 			updateTransport();
@@ -700,6 +703,16 @@
 	$('fullscreen').addEventListener('change', () => { st.fullscreen = $('fullscreen').checked; save(); });
 	$('display').addEventListener('change', () => { st.displayId = Number($('display').value); save(); });
 
+	// 映像のハードウェア復号（起動時にしか切り替えられないので、変えたら再起動する）
+	api.getAppSettings().then((a) => { $('hwDecode').checked = a.hwDecode; });
+	$('hwDecode').addEventListener('change', async () => {
+		const on = $('hwDecode').checked;
+		const ok = confirm(`映像の復号を${on ? 'ハードウェア' : 'ソフトウェア'}に切り替えるため、アプリを再起動します。よろしいですか？`);
+		if (!ok) { $('hwDecode').checked = !on; return; }
+		try { localStorage.setItem(STORE_KEY, JSON.stringify(st)); } catch (e) { /* 保存できなくても再起動は続ける */ }
+		await api.setHwDecode(on, true);
+	});
+
 	async function refreshDisplays() {
 		const list = await api.listDisplays();
 		const sel = $('display');
@@ -738,7 +751,7 @@
 	function outputOpenRequested() {
 		setOutputOpen(true);
 		api.sendState(outputState());
-		sendTransport();
+		sendTransport(true);
 		stateDirty = false;
 	}
 
@@ -801,8 +814,10 @@
 
 	video.addEventListener('play', () => { needsDraw = true; sendTransport(); });
 	video.addEventListener('pause', () => { needsDraw = true; sendTransport(); });
-	video.addEventListener('seeked', () => { needsDraw = true; sendTransport(); });
+	video.addEventListener('seeked', () => { needsDraw = true; sendTransport(true); });
 	video.addEventListener('ended', () => { needsDraw = true; });
+	const onVideoFrame = () => { needsDraw = true; video.requestVideoFrameCallback(onVideoFrame); };
+	video.requestVideoFrameCallback(onVideoFrame);
 	$('btnPlay').addEventListener('click', togglePlay);
 	$('btnPrev').addEventListener('click', () => stepFrame(-1));
 	$('btnNext').addEventListener('click', () => stepFrame(1));
@@ -902,6 +917,23 @@
 			if (t.output) {
 				await api.openOutput({ displayId: null, fullscreen: false, primary: true });
 				await new Promise((r) => setTimeout(r, 1500));
+			}
+			if (t.playtest) {
+				// 出力ウィンドウを開いた状態で再生し、編集画面側の表示コマ数も数える
+				if (!t.noOutput) {
+					await api.openOutput({ displayId: null, fullscreen: false, primary: true });
+					await new Promise((r) => setTimeout(r, 1500));
+				}
+				let frames = 0;
+				const onFrame = () => { frames++; video.requestVideoFrameCallback(onFrame); };
+				video.requestVideoFrameCallback(onFrame);
+				const timer = setInterval(() => t.stats({ win: 'editor', frames, time: +video.currentTime.toFixed(2) }), 1000);
+				await video.play();
+				// 途中で一度シークして、出力ウィンドウが追従するかも確かめる
+				await new Promise((r) => setTimeout(r, t.playtest * 500));
+				video.currentTime += 30;
+				await new Promise((r) => setTimeout(r, t.playtest * 500));
+				clearInterval(timer);
 			}
 			needsDraw = true;
 			setTimeout(() => t.ready(), 500);

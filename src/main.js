@@ -7,6 +7,24 @@ let output = null;
 
 const PRELOAD = path.join(__dirname, 'preload.js');
 
+// アプリの設定（起動時に読むもの）。userData/settings.json に保存する
+const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
+function readSettings() {
+	try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')); } catch (e) { return {}; }
+}
+const settings = readSettings();
+
+// 映像のハードウェアデコード。環境によっては2つのウィンドウで同時に再生すると止まることがあるので、
+// 画面の設定でソフトウェアデコードに切り替えられるようにする（起動時にしか切り替えられない）。
+// 環境変数 CUBEMAPPER_HWDECODE=0/1 があればそちらを優先する
+const hwDecode = process.env.CUBEMAPPER_HWDECODE !== undefined
+	? process.env.CUBEMAPPER_HWDECODE !== '0'
+	: settings.hwDecode !== false;
+if (!hwDecode) app.commandLine.appendSwitch('disable-accelerated-video-decode');
+
+// 背面や別画面のウィンドウでも描画・再生を間引かない
+const WEB_PREFS = { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false };
+
 function createEditor() {
 	editor = new BrowserWindow({
 		width: 1600,
@@ -15,7 +33,7 @@ function createEditor() {
 		minHeight: 700,
 		backgroundColor: '#16181c',
 		title: 'cubemapper',
-		webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false },
+		webPreferences: WEB_PREFS,
 	});
 	editor.setMenuBarVisibility(false);
 	editor.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -25,10 +43,14 @@ function createEditor() {
 	});
 
 	// 動作確認用：CUBEMAPPER_CAPTURE=保存先.png で起動すると、準備完了後に画面を保存して終了する
-	if (process.env.CUBEMAPPER_CAPTURE) {
+	// CUBEMAPPER_PLAYTEST=秒数 で起動すると、出力ウィンドウを開いて再生し、表示コマ数などを標準出力に出して終了する
+	if (process.env.CUBEMAPPER_PLAYTEST) {
+		ipcMain.on('selftest-stats', (_e, o) => console.log('[stats] ' + JSON.stringify(o)));
+	}
+	if (process.env.CUBEMAPPER_CAPTURE || process.env.CUBEMAPPER_PLAYTEST) {
 		ipcMain.once('selftest-ready', async () => {
 			await new Promise((r) => setTimeout(r, 600));
-			fs.writeFileSync(process.env.CUBEMAPPER_CAPTURE, (await editor.capturePage()).toPNG());
+			if (process.env.CUBEMAPPER_CAPTURE) fs.writeFileSync(process.env.CUBEMAPPER_CAPTURE, (await editor.capturePage()).toPNG());
 			if (output && process.env.CUBEMAPPER_CAPTURE_OUT) {
 				fs.writeFileSync(process.env.CUBEMAPPER_CAPTURE_OUT, (await output.capturePage()).toPNG());
 			}
@@ -71,7 +93,7 @@ function openOutput({ displayId, fullscreen, primary }) {
 		frame: !fullscreen,
 		backgroundColor: '#000000',
 		title: 'cubemapper 出力',
-		webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false },
+		webPreferences: WEB_PREFS,
 	});
 	output.setMenuBarVisibility(false);
 	output.loadFile(path.join(__dirname, 'renderer', 'output.html'));
@@ -123,6 +145,16 @@ ipcMain.handle('load-project', async () => {
 });
 
 ipcMain.handle('file-exists', (_e, p) => !!p && fs.existsSync(p));
+
+ipcMain.handle('get-app-settings', () => ({ hwDecode }));
+ipcMain.handle('set-hw-decode', (_e, on, relaunch) => {
+	fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
+	fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...readSettings(), hwDecode: !!on }, null, 2), 'utf-8');
+	if (relaunch) {
+		app.relaunch();
+		app.exit(0);
+	}
+});
 
 app.whenReady().then(() => {
 	createEditor();

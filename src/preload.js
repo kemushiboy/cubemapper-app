@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('cubemapper', {
 	saveProject: (data, defaultPath) => ipcRenderer.invoke('save-project', data, defaultPath),
 	loadProject: () => ipcRenderer.invoke('load-project'),
 	fileExists: (p) => ipcRenderer.invoke('file-exists', p),
+	getAppSettings: () => ipcRenderer.invoke('get-app-settings'),
+	setHwDecode: (on, relaunch) => ipcRenderer.invoke('set-hw-decode', on, relaunch),
 	listDisplays: () => ipcRenderer.invoke('list-displays'),
 	openOutput: (opts) => ipcRenderer.invoke('output-open', opts),
 	closeOutput: () => ipcRenderer.invoke('output-close'),
@@ -36,6 +38,9 @@ contextBridge.exposeInMainWorld('cubemapper', {
 		output: !!process.env.CUBEMAPPER_CAPTURE_OUT,
 		seek: Number(process.env.CUBEMAPPER_SEEK || 0),
 		drag: !!process.env.CUBEMAPPER_DRAG,
+		playtest: Number(process.env.CUBEMAPPER_PLAYTEST || 0),
+		noOutput: !!process.env.CUBEMAPPER_NOOUTPUT,
+		stats: (o) => ipcRenderer.send('selftest-stats', o),
 		ready: () => ipcRenderer.send('selftest-ready'),
 	},
 });
