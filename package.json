@@ -1,7 +1,7 @@
 {
   "name": "cubemapper-app",
   "productName": "cubemapper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "正六角形に変換したキューブ映像を、実物のキューブへプロジェクションマッピングするアプリ",
   "main": "src/main.js",
   "private": true,
